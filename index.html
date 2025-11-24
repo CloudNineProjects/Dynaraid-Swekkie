@@ -103,7 +103,7 @@
 <div id="app" class="wrap" style="display:none">
   <div class="panel">
     
-    <label>Region (A)</label>
+    <label>Area (A)</label>
     <select id="selA"><option value="">— choose —</option></select>
 
     <label>Dynamax (B)</label>
@@ -150,7 +150,7 @@ loadBtn.onclick = () => {
       rows = res.data;
 
       // Column map (names exactly as sheet)
-      col.A = headers[0]; // Region
+      col.A = headers[0]; // Area
       col.B = headers[1]; // Dynamax
       col.C = headers[2]; // Picture
       col.D = headers[3]; // Teleport

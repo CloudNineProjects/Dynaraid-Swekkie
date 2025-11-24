@@ -1,316 +1,380 @@
-<!DOCTYPE html>
-<html lang="de">
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Filter Tool</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Sheet → Cards Tool</title>
 
+<!-- PapaParse -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
-    body {
-        margin: 0;
-        font-family: Arial, sans-serif;
-        background: #f4f4f4;
-        color: #111;
-        transition: background .3s, color .3s;
-    }
-    body.dark {
-        background: #0f1720;
-        color: #e4e4e4;
-    }
+  :root{
+    --bg: #f6f8fa;
+    --surface: #ffffff;
+    --text: #0f1720;
+    --muted: #6b7280;
+    --accent: #0ea5a4;
+    --card-shadow: 0 10px 30px rgba(2,6,23,0.06);
+  }
+  body { margin:0; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text); transition: background .25s, color .25s; }
+  body.dark { --bg: #071122; --surface: #07121a; --text: #e6eef6; --muted: #9fb0bf; --card-shadow: none; }
 
-    /* ---------------- LOADING ---------------- */
-    #loadingScreen {
-        min-height: 100vh;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 18px;
-    }
-    #loadingScreen img {
-        width: 220px;
-        height: 220px;
-        object-fit: cover;
-        border-radius: 12px;
-        box-shadow: 0 8px 30px rgba(0,0,0,0.25);
-    }
-    #loadButton {
-        padding: 10px 22px;
-        background: #00a8a8;
-        color: #fff;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-size: 16px;
-        width: auto;
-    }
+  /* Mode toggle */
+  #modeToggle {
+    position: fixed; top: 12px; right: 12px; z-index:1200;
+    background: rgba(255,255,255,0.9); padding:8px 12px; border-radius:10px; cursor:pointer;
+    box-shadow: 0 8px 24px rgba(2,6,23,0.06); user-select:none;
+  }
+  body.dark #modeToggle { background: rgba(0,0,0,0.5); color:#fff; box-shadow:none; }
 
-    /* ---------------- MODE TOGGLE ---------------- */
-    #modeToggle {
-        position: fixed;
-        top: 10px;
-        right: 10px;
-        padding: 8px 12px;
-        border-radius: 8px;
-        background: rgba(255,255,255,0.8);
-        cursor: pointer;
-    }
-    body.dark #modeToggle {
-        background: rgba(0,0,0,0.5);
-        color: #fff;
-    }
+  /* Loading screen */
+  #loading {
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:16px; text-align:center;
+    padding: 28px;
+  }
+  #loading img.logo { width:220px; height:220px; object-fit:cover; border-radius:12px; box-shadow:var(--card-shadow); }
+  #loadBtn {
+    padding:10px 18px; border-radius:10px; border:none; background:var(--accent); color:white; font-weight:600;
+    cursor:pointer; font-size:15px; width:auto; min-width:140px;
+  }
+  #loading .info { color:var(--muted); font-size:0.95rem; margin-top:6px; }
 
-    /* ---------------- APP ---------------- */
-    #app {
-        display: none;
-        max-width: 900px;
-        margin: 25px auto;
-        padding: 10px;
-    }
+  /* App container */
+  .wrap { max-width:1000px; margin:28px auto; padding:18px; box-sizing:border-box; }
+  .panel { background:var(--surface); border-radius:12px; padding:14px; box-shadow:var(--card-shadow); }
 
-    select {
-        width: 100%;
-        padding: 10px;
-        margin-top: 10px;
-        border-radius: 6px;
-        border: 1px solid #aaa;
-    }
-    button {
-        cursor: pointer;
-    }
+  h1 { margin:0 0 10px 0; font-size:18px; }
+  label { display:block; margin-top:12px; color:var(--muted); font-size:13px; }
+  select, button { width:100%; padding:10px 12px; margin-top:6px; border-radius:8px; border:1px solid rgba(2,6,23,0.06); background:transparent; font-size:15px; color:inherit; box-sizing:border-box; }
+  .controls { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
+  .controls button { width:auto; padding:10px 14px; }
 
-    /* ---------------- CARDS ---------------- */
-    .card {
-        background: white;
-        padding: 18px;
-        border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-        margin-top: 20px;
-        transition: background .3s;
-    }
-    body.dark .card {
-        background: #0b1620;
-        color: #fff;
-        box-shadow: none;
-        border: 1px solid #1e2730;
-    }
+  /* Result cards container */
+  #cards { margin-top:18px; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
 
-    .card img.small {
-        width: 100%;
-        max-height: 160px;
-        object-fit: cover;
-        border-radius: 8px;
-    }
+  .card {
+    background:var(--surface); border-radius:10px; padding:12px; box-shadow:var(--card-shadow); display:flex; flex-direction:column; gap:8px;
+    border:1px solid rgba(0,0,0,0.04);
+  }
+  .card h3 { margin:0; font-size:14px; font-weight:700; }
+  .card .body { font-size:14px; color:var(--text); }
+  .card .meta { font-size:12px; color:var(--muted); }
 
-    pre {
-        white-space: pre-wrap;
-        font-family: inherit;
-        margin: 0;
-    }
+  img.preview { width:100%; height:160px; object-fit:cover; border-radius:8px; display:block; }
+  pre.preserved { white-space: pre-wrap; font-family: inherit; margin:0; color:var(--text); }
 
-    /* ---------------- FULLSCREEN IMAGE ---------------- */
-    #imgOverlay {
-        display: none;
-        position: fixed;
-        inset: 0;
-        background: rgba(0,0,0,0.7);
-        backdrop-filter: blur(3px);
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
-    }
-    #imgOverlay img {
-        max-width: 90%;
-        max-height: 90%;
-        border-radius: 10px;
-    }
-    #closeOverlay {
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        background: #fff;
-        color: #000;
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        cursor: pointer;
-        font-weight: bold;
-        font-size: 20px;
-    }
+  /* Image overlay */
+  #overlay {
+    display:none; position:fixed; inset:0; background:rgba(2,6,23,0.7); z-index:2200; align-items:center; justify-content:center; padding:18px;
+  }
+  #overlay img { max-width:95%; max-height:95%; border-radius:8px; box-shadow:0 12px 40px rgba(0,0,0,0.6); }
+  .overlay-close {
+    position:absolute; top:18px; right:18px; background:rgba(255,255,255,0.95); width:36px; height:36px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:700; z-index:2300;
+  }
+  body.dark .overlay-close { background:rgba(0,0,0,0.6); color:#fff; }
+
+  .no-results { color:var(--muted); margin-top:12px; }
+
+  @media(max-width:640px){
+    #loading img.logo { width:180px; height:180px; }
+    .card { padding:10px; }
+  }
 </style>
 </head>
 <body>
+  <div id="modeToggle">🌙</div>
 
-<div id="modeToggle">🌙</div>
+  <!-- Loading screen -->
+  <div id="loading" role="status" aria-live="polite">
+    <!-- Imgur image you requested -->
+    <img class="logo" src="https://i.imgur.com/XZcfQzw.png" alt="loading image">
+    <button id="loadBtn">Load data</button>
+    <div class="info" id="loadingInfo" style="display:none">Loading…</div>
+  </div>
 
-<!-- ---------------- LOADING SCREEN ---------------- -->
-<div id="loadingScreen">
-    <img src="https://i.imgur.com/XZcfQzw.png">
-    <button id="loadButton">Daten laden</button>
-</div>
+  <!-- Main app -->
+  <div id="app" class="wrap" style="display:none">
+    <div class="panel">
+      <h1>Filter (Column A → B → C)</h1>
 
-<!-- ---------------- APP ---------------- -->
-<div id="app">
-    <h2>Filter</h2>
+      <label for="selA">Column A — Region</label>
+      <select id="selA"><option value="">— choose —</option></select>
 
-    <select id="selA">
-        <option value="">Region wählen…</option>
-    </select>
+      <label for="selB">Column B — Location</label>
+      <select id="selB"><option value="">— choose —</option></select>
 
-    <select id="selB">
-        <option value="">Location wählen…</option>
-    </select>
+      <label for="selC">Column C — Dynamax</label>
+      <select id="selC"><option value="">— choose —</option></select>
 
-    <select id="selC">
-        <option value="">Dynamax wählen…</option>
-    </select>
+      <div class="controls">
+        <button id="showBtn" style="background:var(--accent); color:#fff; border:none;">Show</button>
+        <button id="resetBtn">Reset</button>
+        <button id="downloadBtn">Open CSV</button>
+      </div>
 
-    <button id="showButton" style="margin-top:12px;padding:10px 16px;">Anzeigen</button>
+      <div id="cards" aria-live="polite"></div>
+      <div id="noResults" class="no-results" style="display:none">No matching row found.</div>
+    </div>
+  </div>
 
-    <div id="cards"></div>
-</div>
-
-<!-- ---------------- FULLSCREEN OVERLAY ---------------- -->
-<div id="imgOverlay">
-    <div id="closeOverlay">✕</div>
-    <img id="overlayImg" src="">
-</div>
+  <!-- Overlay for full-size images -->
+  <div id="overlay" tabindex="-1">
+    <div class="overlay-close" id="overlayClose" aria-label="Close">✕</div>
+    <img id="overlayImg" alt="full-size" src="">
+  </div>
 
 <script>
+/* ---------------- CONFIG: CSV URL ---------------- */
+/* Using the Google Sheets CSV URL you gave earlier */
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRQS9tFDrOUN8aaTh6g-usN06lUbamRwAYPfhkmZLycHSmuxfiC45Gk33vQzGehprpLjTVgAi4jS2Fl/pub?output=csv";
 
-let rows = [];
-let colA, colB, colC, colD, colE, colF, colG, colH;
+/* ---------------- State ---------------- */
+let rows = [];            // parsed rows (objects)
+let headers = [];         // header names in order
+let col = {};             // mapping index -> header, e.g. col.A = headerName
 
-/* ---------------- LOAD CSV ---------------- */
-document.getElementById("loadButton").onclick = () => {
-    Papa.parse(CSV_URL, {
-        download: true,
-        header: true,
-        complete: (res) => {
-            rows = res.data;
-            const f = res.meta.fields;
+/* DOM refs */
+const loading = document.getElementById('loading');
+const loadBtn = document.getElementById('loadBtn');
+const loadingInfo = document.getElementById('loadingInfo');
+const app = document.getElementById('app');
+const selA = document.getElementById('selA');
+const selB = document.getElementById('selB');
+const selC = document.getElementById('selC');
+const showBtn = document.getElementById('showBtn');
+const resetBtn = document.getElementById('resetBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const cardsContainer = document.getElementById('cards');
+const noResults = document.getElementById('noResults');
 
-            // Mapping
-            colA = f[0];
-            colB = f[1];
-            colC = f[2];
-            colD = f[3];
-            colE = f[4];
-            colF = f[5];
-            colG = f[6];
-            colH = f[7];
+const overlay = document.getElementById('overlay');
+const overlayImg = document.getElementById('overlayImg');
+const overlayClose = document.getElementById('overlayClose');
 
-            // Regions befüllen
-            fillSelect("selA", unique(rows.map(r => r[colA])));
+const modeToggle = document.getElementById('modeToggle');
 
-            document.getElementById("loadingScreen").style.display = "none";
-            document.getElementById("app").style.display = "block";
-        }
-    });
-};
+/* ---------------- UTIL ---------------- */
+function isImageUrl(u){
+  if(!u) return false;
+  try {
+    const s = String(u).trim();
+    if(!s) return false;
+    // accept common image extensions and Imgur links
+    return /\.(png|jpe?g|gif|bmp|webp)(\?.*)?$/i.test(s) || /imgur\.com/i.test(s);
+  } catch(e){ return false; }
+}
+function uniqueSorted(arr){
+  return Array.from(new Set(arr.filter(x=>x!==undefined && x!==null && String(x).trim() !== '').map(x=>String(x).trim()))).sort((a,b)=> a.localeCompare(b, 'en', {sensitivity:'base'}));
+}
+function clearChildren(el){ while(el.firstChild) el.removeChild(el.firstChild); }
 
-/* ---------------- SELECT HELPERS ---------------- */
-function unique(arr) {
-    return [...new Set(arr.filter(x => x && x.trim()))].sort();
+/* ---------------- LOAD CSV (PapaParse) ---------------- */
+loadBtn.addEventListener('click', () => {
+  loadBtn.disabled = true;
+  loadingInfo.style.display = 'block';
+  loadingInfo.textContent = 'Downloading CSV…';
+
+  Papa.parse(CSV_URL, {
+    download: true,
+    header: true,
+    skipEmptyLines: true,
+    complete: (res) => {
+      if(!res || !res.meta || !res.meta.fields){
+        loadingInfo.textContent = 'Failed to parse CSV.';
+        loadBtn.disabled = false;
+        return;
+      }
+
+      headers = res.meta.fields.slice(); // preserve order
+      rows = res.data.filter(r => Object.values(r).some(v => v !== undefined && String(v).trim() !== ''));
+
+      // Map first 8 columns to A..H (if fewer, map what exists)
+      col.A = headers[0] || 'A';
+      col.B = headers[1] || 'B';
+      col.C = headers[2] || 'C';
+      col.D = headers[3] || 'D';
+      col.E = headers[4] || 'E';
+      col.F = headers[5] || 'F';
+      col.G = headers[6] || 'G';
+      col.H = headers[7] || 'H';
+
+      // populate select A
+      const aVals = uniqueSorted(rows.map(r => r[col.A] || ''));
+      populateSelect(selA, aVals, `— choose ${col.A} —`);
+
+      // hide loading, show app
+      loading.style.display = 'none';
+      app.style.display = 'block';
+    },
+    error: (err) => {
+      loadingInfo.textContent = 'Error loading CSV: ' + (err && err.message ? err.message : JSON.stringify(err));
+      loadBtn.disabled = false;
+    }
+  });
+});
+
+/* ---------------- Cascading selects ---------------- */
+selA.addEventListener('change', () => {
+  const a = selA.value;
+  clearChildren(selB);
+  clearChildren(selC);
+  selB.appendChild(new Option(`— choose ${col.B} —`, ''));
+  selC.appendChild(new Option(`— choose ${col.C} —`, ''));
+
+  if(!a) return;
+  const filtered = rows.filter(r => String(r[col.A] || '').trim() === a.trim());
+  const bVals = uniqueSorted(filtered.map(r => r[col.B] || ''));
+  populateSelect(selB, bVals, `— choose ${col.B} —`);
+});
+
+selB.addEventListener('change', () => {
+  const a = selA.value, b = selB.value;
+  clearChildren(selC);
+  selC.appendChild(new Option(`— choose ${col.C} —`, ''));
+  if(!a) return;
+  const filtered = rows.filter(r => String(r[col.A] || '').trim() === a.trim() && String(r[col.B] || '').trim() === String(b).trim());
+  const cVals = uniqueSorted(filtered.map(r => r[col.C] || ''));
+  populateSelect(selC, cVals, `— choose ${col.C} —`);
+});
+
+function populateSelect(selectEl, values, placeholder){
+  selectEl.innerHTML = '';
+  selectEl.appendChild(new Option(placeholder || '— choose —', ''));
+  values.forEach(v => selectEl.appendChild(new Option(v, v)));
 }
 
-document.getElementById("selA").onchange = () => {
-    const a = selA.value;
-    const filtered = rows.filter(r => r[colA] === a);
-    fillSelect("selB", unique(filtered.map(r => r[colB])));
-    document.getElementById("selC").innerHTML = "<option value=''>Dynamax wählen…</option>";
-};
+/* ---------------- Show (create five cards D..H) ---------------- */
+showBtn.addEventListener('click', () => {
+  clearChildren(cardsContainer);
+  noResults.style.display = 'none';
 
-document.getElementById("selB").onchange = () => {
-    const a = selA.value, b = selB.value;
-    const filtered = rows.filter(r => r[colA] === a && r[colB] === b);
-    fillSelect("selC", unique(filtered.map(r => r[colC])));
-};
+  const a = String(selA.value || '').trim();
+  const b = String(selB.value || '').trim();
+  const c = String(selC.value || '').trim();
 
-function fillSelect(id, values) {
-    const s = document.getElementById(id);
-    s.innerHTML = "<option value=''>— wählen —</option>";
-    values.forEach(v => s.innerHTML += `<option>${v}</option>`);
+  if(!a){
+    alert(`Please select ${col.A} first.`);
+    return;
+  }
+
+  // Find the row matching all selected keys (A must match; B and C may be optional)
+  const matched = rows.filter(r => {
+    if(String(r[col.A] || '').trim() !== a) return false;
+    if(b && String(r[col.B] || '').trim() !== b) return false;
+    if(c && String(r[col.C] || '').trim() !== c) return false;
+    return true;
+  });
+
+  if(!matched.length){
+    noResults.style.display = 'block';
+    return;
+  }
+
+  // Choose the first matched row (you said selection narrows to single row)
+  const row = matched[0];
+
+  // Create individual cards for D, E, F, G, H in that order
+  createCardForColumn(col.D, row[col.D], 'image-preview');
+  createCardForColumn(col.E, row[col.E], 'text');
+  createCardForColumn(col.F, row[col.F], 'image-full');
+  createCardForColumn(col.G, row[col.G], 'text');
+  createCardForColumn(col.H, row[col.H], 'text');
+});
+
+/* create card: type = 'image-preview' | 'image-full' | 'text' */
+function createCardForColumn(header, value, type){
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const title = document.createElement('h3');
+  title.textContent = header || '(unknown)';
+  card.appendChild(title);
+
+  const bodyDiv = document.createElement('div');
+  bodyDiv.className = 'body';
+
+  if(type === 'image-preview'){
+    if(value && isImageUrl(value)){
+      const img = document.createElement('img');
+      img.className = 'preview';
+      img.src = String(value).trim();
+      img.alt = header;
+      bodyDiv.appendChild(img);
+    } else {
+      const p = document.createElement('div'); p.textContent = '(no image)'; p.className='meta'; bodyDiv.appendChild(p);
+    }
+  } else if(type === 'image-full'){
+    if(value && isImageUrl(value)){
+      const img = document.createElement('img');
+      img.className = 'preview';
+      img.src = String(value).trim();
+      img.alt = header;
+      img.style.cursor = 'pointer';
+      img.addEventListener('click', ()=> openOverlay(String(value).trim()));
+      const hint = document.createElement('div'); hint.className='meta'; hint.textContent = 'Click to open original size';
+      bodyDiv.appendChild(img);
+      bodyDiv.appendChild(hint);
+    } else {
+      const p = document.createElement('div'); p.textContent = '(no image)'; p.className='meta'; bodyDiv.appendChild(p);
+    }
+  } else { // text
+    const pre = document.createElement('pre');
+    pre.className = 'preserved';
+    pre.textContent = value !== undefined && value !== null ? String(value) : '';
+    bodyDiv.appendChild(pre);
+  }
+
+  card.appendChild(bodyDiv);
+  cardsContainer.appendChild(card);
 }
 
-/* ---------------- SHOW RESULT ---------------- */
-document.getElementById("showButton").onclick = () => {
-    const a = selA.value, b = selB.value, c = selC.value;
-    const row = rows.find(r => r[colA] === a && r[colB] === b && r[colC] === c);
-    if (!row) return;
-
-    const cards = document.getElementById("cards");
-    cards.innerHTML = "";
-
-    // helper
-    const makeCard = (title, content) => {
-        const div = document.createElement("div");
-        div.className = "card";
-        div.innerHTML = `<h3>${title}</h3>`;
-        div.appendChild(content);
-        cards.appendChild(div);
-    };
-
-    // D (preview img)
-    if (row[colD]) {
-        const img = document.createElement("img");
-        img.src = row[colD];
-        img.className = "small";
-        makeCard("Bild (D)", img);
-    }
-
-    // E (text)
-    {
-        const pre = document.createElement("pre");
-        pre.textContent = row[colE] || "";
-        makeCard("Text (E)", pre);
-    }
-
-    // F (fullscreen img)
-    if (row[colF]) {
-        const img = document.createElement("img");
-        img.src = row[colF];
-        img.className = "small";
-        img.style.cursor = "pointer";
-        img.onclick = () => openFull(row[colF]);
-        makeCard("Bild Vollbild (F)", img);
-    }
-
-    // G
-    {
-        const pre = document.createElement("pre");
-        pre.textContent = row[colG] || "";
-        makeCard("Text (G)", pre);
-    }
-
-    // H
-    {
-        const pre = document.createElement("pre");
-        pre.textContent = row[colH] || "";
-        makeCard("Text (H)", pre);
-    }
-};
-
-/* ---------------- FULLSCREEN IMAGE ---------------- */
-function openFull(src) {
-    document.getElementById("overlayImg").src = src;
-    document.getElementById("imgOverlay").style.display = "flex";
+/* ---------------- Overlay (full-size image) ---------------- */
+function openOverlay(src){
+  overlayImg.src = src;
+  overlay.style.display = 'flex';
+  overlay.focus();
 }
-document.getElementById("closeOverlay").onclick = () => {
-    document.getElementById("imgOverlay").style.display = "none";
-};
+overlayClose.addEventListener('click', () => {
+  overlay.style.display = 'none';
+  overlayImg.src = '';
+});
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && overlay.style.display === 'flex'){
+    overlay.style.display = 'none';
+    overlayImg.src = '';
+  }
+});
 
-/* ---------------- DARK MODE ---------------- */
-document.getElementById("modeToggle").onclick = () => {
-    document.body.classList.toggle("dark");
-};
+/* ---------------- Reset & Download ---------------- */
+resetBtn.addEventListener('click', () => {
+  selA.selectedIndex = 0;
+  selB.innerHTML = `<option value="">— choose ${col.B} —</option>`;
+  selC.innerHTML = `<option value="">— choose ${col.C} —</option>`;
+  clearChildren(cardsContainer);
+  noResults.style.display = 'none';
+});
+
+downloadBtn.addEventListener('click', () => {
+  window.open(CSV_URL, '_blank');
+});
+
+/* ---------------- Mode toggle ---------------- */
+modeToggle.addEventListener('click', () => {
+  document.body.classList.toggle('dark');
+  modeToggle.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+});
+
+/* ---------------- Accessibility: allow clicking background to close overlay ---------------- */
+overlay.addEventListener('click', (e) => {
+  if(e.target === overlay) {
+    overlay.style.display = 'none';
+    overlayImg.src = '';
+  }
+});
+
 </script>
-
 </body>
 </html>

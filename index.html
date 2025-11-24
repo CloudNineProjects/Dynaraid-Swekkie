@@ -1,437 +1,316 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Region / Location / Dynamax Browser</title>
+<meta charset="UTF-8">
+<title>Filter Tool</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-<!-- PapaParse -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
-  :root{
-    --bg-light: #f4f6f8;
-    --bg-dark: #0f1720;
-    --card-light: #ffffff;
-    --card-dark: #0b1620;
-    --accent: #0ea5a4;
-    --muted:#68707a;
-  }
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        background: #f4f4f4;
+        color: #111;
+        transition: background .3s, color .3s;
+    }
+    body.dark {
+        background: #0f1720;
+        color: #e4e4e4;
+    }
 
-  html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial}
-  body{background:var(--bg-light);color:#0b1220}
-  body.dark{background:var(--bg-dark);color:#e6eef6}
+    /* ---------------- LOADING ---------------- */
+    #loadingScreen {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+    }
+    #loadingScreen img {
+        width: 220px;
+        height: 220px;
+        object-fit: cover;
+        border-radius: 12px;
+        box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+    }
+    #loadButton {
+        padding: 10px 22px;
+        background: #00a8a8;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        width: auto;
+    }
 
-  /* top-right mode toggle */
-  .mode-toggle{
-    position:fixed; top:12px; right:12px; z-index:1200;
-    background:rgba(255,255,255,0.95); color:#0b1220;
-    padding:8px 12px; border-radius:10px; cursor:pointer; user-select:none;
-    box-shadow:0 8px 24px rgba(2,6,23,0.08); font-size:14px;
-  }
-  body.dark .mode-toggle{ background: rgba(0,0,0,0.6); color:#fff; box-shadow:none; }
+    /* ---------------- MODE TOGGLE ---------------- */
+    #modeToggle {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: rgba(255,255,255,0.8);
+        cursor: pointer;
+    }
+    body.dark #modeToggle {
+        background: rgba(0,0,0,0.5);
+        color: #fff;
+    }
 
-  /* loading screen */
-  .loader{
-    min-height:100vh; display:flex; align-items:center; justify-content:center;
-    flex-direction:column; gap:16px; text-align:center;
-  }
-  .loader img.logo{
-    width:220px; height:220px; object-fit:cover; border-radius:12px;
-    box-shadow:0 14px 40px rgba(2,6,23,0.12);
-  }
-  .load-btn{
-    padding:12px 18px; border-radius:10px; border:none; background:var(--accent);
-    color:white; cursor:pointer; font-weight:600; font-size:16px;
-  }
-  .loading-text{ color:var(--muted); font-size:0.95rem; margin-top:6px; }
+    /* ---------------- APP ---------------- */
+    #app {
+        display: none;
+        max-width: 900px;
+        margin: 25px auto;
+        padding: 10px;
+    }
 
-  /* app area */
-  .wrap{ max-width:1000px; margin:28px auto; padding:18px; box-sizing:border-box; }
-  .card{
-    border-radius:12px; padding:18px; background:var(--card-light);
-    box-shadow:0 12px 30px rgba(2,6,23,0.06); color:inherit;
-  }
-  body.dark .card{ background:var(--card-dark); box-shadow: none; }
+    select {
+        width: 100%;
+        padding: 10px;
+        margin-top: 10px;
+        border-radius: 6px;
+        border: 1px solid #aaa;
+    }
+    button {
+        cursor: pointer;
+    }
 
-  h1{ margin:0 0 10px; font-size:20px }
-  label{ display:block; font-size:0.95rem; margin-top:12px; margin-bottom:6px; color:var(--muted) }
-  select, button{
-    width:100%; box-sizing:border-box; padding:10px 12px; border-radius:10px;
-    border:1px solid rgba(2,6,23,0.06); font-size:15px; background:white; color:#0b1220;
-  }
-  body.dark select, body.dark input { background:#071018; color:#e6eef6; border:1px solid rgba(255,255,255,0.06); }
-  .controls{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; align-items:center; }
-  .controls button{ width:auto; padding:10px 14px; cursor:pointer; }
+    /* ---------------- CARDS ---------------- */
+    .card {
+        background: white;
+        padding: 18px;
+        border-radius: 12px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+        margin-top: 20px;
+        transition: background .3s;
+    }
+    body.dark .card {
+        background: #0b1620;
+        color: #fff;
+        box-shadow: none;
+        border: 1px solid #1e2730;
+    }
 
-  /* cards area for results */
-  .results-grid{ margin-top:14px; display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px; }
-  .result-card{
-    border-radius:12px; padding:12px; background:rgba(255,255,255,0.96); box-shadow:0 8px 20px rgba(2,6,23,0.06);
-    overflow:hidden; display:flex; flex-direction:column; gap:8px;
-  }
-  body.dark .result-card{ background: #08121a; color:#e6eef6; box-shadow:none; border:1px solid rgba(255,255,255,0.03); }
+    .card img.small {
+        width: 100%;
+        max-height: 160px;
+        object-fit: cover;
+        border-radius: 8px;
+    }
 
-  .thumb{ width:100%; height:160px; object-fit:cover; border-radius:8px; background:#ddd; }
-  .small-thumb{ width:100%; max-height:120px; object-fit:cover; border-radius:8px; }
-  .card-row{ display:flex; gap:10px; align-items:flex-start; }
-  .meta{ font-size:0.95rem; color:var(--muted); }
-  body.dark .meta{ color: #9fb0bf; }
+    pre {
+        white-space: pre-wrap;
+        font-family: inherit;
+        margin: 0;
+    }
 
-  .full-text{ white-space:pre-wrap; font-size:0.95rem; color:inherit; margin:0; background:transparent; }
-
-  .img-preview{
-    position:fixed; inset:0; background:rgba(2,6,23,0.7); display:flex; align-items:center; justify-content:center;
-    z-index:2200; padding:18px;
-  }
-  .img-preview img{ max-width:95%; max-height:95%; border-radius:8px; box-shadow:0 12px 40px rgba(0,0,0,0.6); }
-  .close-x{
-    position:absolute; top:18px; right:18px; background:rgba(255,255,255,0.9); color:#111; width:36px; height:36px;
-    border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:2300;
-  }
-  body.dark .close-x{ background:rgba(0,0,0,0.6); color:#fff; }
-
-  .no-results{ margin-top:12px; color:var(--muted); }
-
-  @media(max-width:700px){
-    .loader img.logo{ width:180px; height:180px; }
-    .thumb{ height:140px; }
-  }
+    /* ---------------- FULLSCREEN IMAGE ---------------- */
+    #imgOverlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.7);
+        backdrop-filter: blur(3px);
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+    #imgOverlay img {
+        max-width: 90%;
+        max-height: 90%;
+        border-radius: 10px;
+    }
+    #closeOverlay {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: #fff;
+        color: #000;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 20px;
+    }
 </style>
 </head>
 <body>
-  <div id="modeToggle" class="mode-toggle">🌙 Dark Mode</div>
 
-  <!-- Loading screen -->
-  <div id="loading" class="loader" aria-live="polite">
-    <!-- exact imgur image as requested -->
-    <img class="logo" src="https://i.imgur.com/XZcfQzw.png" alt="logo">
-    <button id="loadBtn" class="load-btn">Daten laden</button>
-    <div id="loadingText" class="loading-text" style="display:none"></div>
-  </div>
+<div id="modeToggle">🌙</div>
 
-  <!-- App -->
-  <div id="app" class="wrap" style="display:none">
-    <div class="card">
-      <h1>Filter & Anzeigen</h1>
+<!-- ---------------- LOADING SCREEN ---------------- -->
+<div id="loadingScreen">
+    <img src="https://i.imgur.com/XZcfQzw.png">
+    <button id="loadButton">Daten laden</button>
+</div>
 
-      <label for="selA">Spalte A — Region</label>
-      <select id="selA"><option value="">— wählen —</option></select>
+<!-- ---------------- APP ---------------- -->
+<div id="app">
+    <h2>Filter</h2>
 
-      <label for="selB">Spalte B — Location</label>
-      <select id="selB"><option value="">— wählen —</option></select>
+    <select id="selA">
+        <option value="">Region wählen…</option>
+    </select>
 
-      <label for="selC">Spalte C — Dynamax</label>
-      <select id="selC"><option value="">— wählen —</option></select>
+    <select id="selB">
+        <option value="">Location wählen…</option>
+    </select>
 
-      <div class="controls">
-        <button id="showBtn" style="background:var(--accent); color:#fff; border:none;">Show</button>
-        <button id="resetBtn" style="background:#fff; border:1px solid rgba(2,6,23,0.06);">Reset</button>
-        <button id="downloadBtn" style="background:#fff; border:1px solid rgba(2,6,23,0.06);">CSV herunterladen</button>
-      </div>
+    <select id="selC">
+        <option value="">Dynamax wählen…</option>
+    </select>
 
-      <div id="resultsContainer" style="margin-top:12px"></div>
-    </div>
-  </div>
+    <button id="showButton" style="margin-top:12px;padding:10px 16px;">Anzeigen</button>
 
-  <!-- image preview overlay -->
-  <div id="imgPreview" style="display:none"></div>
+    <div id="cards"></div>
+</div>
+
+<!-- ---------------- FULLSCREEN OVERLAY ---------------- -->
+<div id="imgOverlay">
+    <div id="closeOverlay">✕</div>
+    <img id="overlayImg" src="">
+</div>
 
 <script>
-/* --------------- Konfiguration --------------- */
-/* Setze hier die CSV-URL (nutze die von dir gegebenen Link) */
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRQS9tFDrOUN8aaTh6g-usN06lUbamRwAYPfhkmZLycHSmuxfiC45Gk33vQzGehprpLjTVgAi4jS2Fl/pub?output=csv";
 
-/* Hinweise:
-   Wir behandeln Spalte A/B/C/D/E/F/G/H generisch — nehmen die ersten 8 Felder aus der CSV.
-   Falls Tabellen-Header anders heißen: wir ermitteln die Feldnamen dynamisch und nutzen sie.
-*/
+let rows = [];
+let colA, colB, colC, colD, colE, colF, colG, colH;
 
-/* --------------- Utility --------------- */
-const $ = id => document.getElementById(id);
-const escapeHtml = s => s==null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+/* ---------------- LOAD CSV ---------------- */
+document.getElementById("loadButton").onclick = () => {
+    Papa.parse(CSV_URL, {
+        download: true,
+        header: true,
+        complete: (res) => {
+            rows = res.data;
+            const f = res.meta.fields;
 
-/* --------------- State --------------- */
-let rawRows = [];    // alle Zeilen parsed
-let fields = [];     // header-Felder in Reihenfolge
-let colA, colB, colC, colD, colE, colF, colG, colH; // field names mapped by index
+            // Mapping
+            colA = f[0];
+            colB = f[1];
+            colC = f[2];
+            colD = f[3];
+            colE = f[4];
+            colF = f[5];
+            colG = f[6];
+            colH = f[7];
 
-/* --------------- Load / Parse CSV --------------- */
-function loadData(){
-  $('loadBtn').disabled = true;
-  $('loadingText').style.display='block';
-  $('loadingText').textContent='Lade Daten...';
-  Papa.parse(CSV_URL, {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: (res) => {
-      if(!res || !res.data || !res.meta || !res.meta.fields){
-        $('loadingText').textContent = 'Fehler beim Laden / ungültiges CSV';
-        $('loadBtn').disabled = false;
-        return;
-      }
-      rawRows = res.data.map(r=>{
-        // keep original strings, don't trim formatting for G/H
-        // normalize keys: keep as-is
-        return r;
-      }).filter(r => Object.values(r).some(v=>v && String(v).trim() !== ''));
-      fields = res.meta.fields.slice(); // copy
-      mapColumnsByIndex();
-      populateSelA();
-      $('loading').style.display='none';
-      $('app').style.display='block';
-    },
-    error: (err) => {
-      console.error(err);
-      $('loadingText').textContent = 'Fehler beim Laden: ' + (err.message || JSON.stringify(err));
-      $('loadBtn').disabled = false;
-    }
-  });
+            // Regions befüllen
+            fillSelect("selA", unique(rows.map(r => r[colA])));
+
+            document.getElementById("loadingScreen").style.display = "none";
+            document.getElementById("app").style.display = "block";
+        }
+    });
+};
+
+/* ---------------- SELECT HELPERS ---------------- */
+function unique(arr) {
+    return [...new Set(arr.filter(x => x && x.trim()))].sort();
 }
 
-/* Mappe die ersten 8 Felder als Spalte A-H (falls weniger vorhanden, dann bleiben undefined) */
-function mapColumnsByIndex(){
-  colA = fields[0] || 'A';
-  colB = fields[1] || 'B';
-  colC = fields[2] || 'C';
-  colD = fields[3] || 'D';
-  colE = fields[4] || 'E';
-  colF = fields[5] || 'F';
-  colG = fields[6] || 'G';
-  colH = fields[7] || 'H';
+document.getElementById("selA").onchange = () => {
+    const a = selA.value;
+    const filtered = rows.filter(r => r[colA] === a);
+    fillSelect("selB", unique(filtered.map(r => r[colB])));
+    document.getElementById("selC").innerHTML = "<option value=''>Dynamax wählen…</option>";
+};
+
+document.getElementById("selB").onchange = () => {
+    const a = selA.value, b = selB.value;
+    const filtered = rows.filter(r => r[colA] === a && r[colB] === b);
+    fillSelect("selC", unique(filtered.map(r => r[colC])));
+};
+
+function fillSelect(id, values) {
+    const s = document.getElementById(id);
+    s.innerHTML = "<option value=''>— wählen —</option>";
+    values.forEach(v => s.innerHTML += `<option>${v}</option>`);
 }
 
-/* --------------- Helpers für selects (kaskadierend) --------------- */
-function uniqueSorted(arr){
-  const s = Array.from(new Set(arr.filter(x=>x !== undefined && x !== null && String(x).trim() !== '').map(x=>x.trim())));
-  s.sort((a,b)=> a.localeCompare(b, 'de', {sensitivity:'base'}));
-  return s;
-}
+/* ---------------- SHOW RESULT ---------------- */
+document.getElementById("showButton").onclick = () => {
+    const a = selA.value, b = selB.value, c = selC.value;
+    const row = rows.find(r => r[colA] === a && r[colB] === b && r[colC] === c);
+    if (!row) return;
 
-function populateSelA(){
-  const sel = $('selA');
-  sel.innerHTML = '<option value="">— wählen —</option>';
-  const values = uniqueSorted(rawRows.map(r => r[colA] ? String(r[colA]) : ''));
-  values.forEach(v => {
-    sel.appendChild(new Option(v, v));
-  });
-  // reset downstream
-  populateSelB([]);
-  populateSelC([]);
-}
+    const cards = document.getElementById("cards");
+    cards.innerHTML = "";
 
-/* Population von B abhängig von A */
-function populateSelB(filteredRows){
-  const sel = $('selB');
-  sel.innerHTML = '<option value="">— wählen —</option>';
-  let values;
-  if(filteredRows && filteredRows.length) values = uniqueSorted(filteredRows.map(r=> r[colB] || ''));
-  else values = [];
-  values.forEach(v => sel.appendChild(new Option(v, v)));
-}
+    // helper
+    const makeCard = (title, content) => {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `<h3>${title}</h3>`;
+        div.appendChild(content);
+        cards.appendChild(div);
+    };
 
-/* Population von C abhängig von A und B */
-function populateSelC(filteredRows){
-  const sel = $('selC');
-  sel.innerHTML = '<option value="">— wählen —</option>';
-  let values;
-  if(filteredRows && filteredRows.length) values = uniqueSorted(filteredRows.map(r=> r[colC] || ''));
-  else values = [];
-  values.forEach(v => sel.appendChild(new Option(v, v)));
-}
-
-/* Update cascading when selection changes */
-$('selA').addEventListener('change', ()=>{
-  const a = $('selA').value;
-  if(!a){
-    populateSelB([]);
-    populateSelC([]);
-    return;
-  }
-  const rowsA = rawRows.filter(r => String(r[colA] || '').trim() === a.trim());
-  populateSelB(rowsA);
-  populateSelC([]); // clear C until B selected
-});
-
-$('selB').addEventListener('change', ()=>{
-  const a = $('selA').value;
-  const b = $('selB').value;
-  if(!a) return;
-  const rowsFiltered = rawRows.filter(r => String(r[colA] || '').trim() === a.trim()
-                                        && String(r[colB] || '').trim() === (b ? b.trim() : b));
-  populateSelC(rowsFiltered);
-});
-
-/* --------------- Render Results (Cards) --------------- */
-function renderCards(list){
-  const cont = $('resultsContainer');
-  cont.innerHTML = '';
-  if(!list.length){
-    cont.innerHTML = '<div class="no-results">Keine Einträge gefunden.</div>';
-    return;
-  }
-
-  const grid = document.createElement('div');
-  grid.className = 'results-grid';
-
-  list.forEach(row => {
-    const rc = document.createElement('article');
-    rc.className = 'result-card';
-
-    // Spalte D: kleines Vorschaubild (falls vorhanden)
-    const dVal = row[colD] || '';
-    if(dVal && isImageUrl(dVal)){
-      const img = document.createElement('img');
-      img.src = dVal;
-      img.alt = 'Vorschaubild';
-      img.className = 'small-thumb';
-      rc.appendChild(img);
+    // D (preview img)
+    if (row[colD]) {
+        const img = document.createElement("img");
+        img.src = row[colD];
+        img.className = "small";
+        makeCard("Bild (D)", img);
     }
 
-    // Spalte E: als Titel/kurzer Text
-    const eVal = row[colE] || '';
-    if(eVal){
-      const title = document.createElement('div');
-      title.style.fontWeight = '700';
-      title.style.fontSize = '1rem';
-      title.textContent = eVal;
-      rc.appendChild(title);
+    // E (text)
+    {
+        const pre = document.createElement("pre");
+        pre.textContent = row[colE] || "";
+        makeCard("Text (E)", pre);
     }
 
-    // Spalte F: clickable bild, öffnet overlay in originalgröße
-    const fVal = row[colF] || '';
-    if(fVal && isImageUrl(fVal)){
-      const wrapper = document.createElement('div');
-      wrapper.style.display='flex'; wrapper.style.justifyContent='center';
-      const btn = document.createElement('button');
-      btn.style.width='100%'; btn.style.padding='8px'; btn.style.border='1px solid rgba(0,0,0,0.06)'; btn.style.borderRadius='8px';
-      btn.style.background='transparent'; btn.style.cursor='pointer';
-      btn.innerHTML = 'Vollbildansicht öffnen';
-      btn.addEventListener('click', ()=> openPreview(fVal));
-      wrapper.appendChild(btn);
-      rc.appendChild(wrapper);
+    // F (fullscreen img)
+    if (row[colF]) {
+        const img = document.createElement("img");
+        img.src = row[colF];
+        img.className = "small";
+        img.style.cursor = "pointer";
+        img.onclick = () => openFull(row[colF]);
+        makeCard("Bild Vollbild (F)", img);
     }
 
-    // Spalte G: Text - preserve formatting
-    const gVal = row[colG] || '';
-    if(gVal){
-      const gBlock = document.createElement('pre');
-      gBlock.className = 'full-text';
-      gBlock.textContent = gVal;
-      rc.appendChild(gBlock);
+    // G
+    {
+        const pre = document.createElement("pre");
+        pre.textContent = row[colG] || "";
+        makeCard("Text (G)", pre);
     }
 
-    // Spalte H: Text - preserve formatting
-    const hVal = row[colH] || '';
-    if(hVal){
-      const hBlock = document.createElement('pre');
-      hBlock.className = 'full-text';
-      hBlock.textContent = hVal;
-      rc.appendChild(hBlock);
+    // H
+    {
+        const pre = document.createElement("pre");
+        pre.textContent = row[colH] || "";
+        makeCard("Text (H)", pre);
     }
+};
 
-    // optionally show meta A/B/C
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = `${colA}: ${row[colA] || ''} • ${colB}: ${row[colB] || ''} • ${colC}: ${row[colC] || ''}`;
-    rc.appendChild(meta);
-
-    grid.appendChild(rc);
-  });
-
-  cont.appendChild(grid);
+/* ---------------- FULLSCREEN IMAGE ---------------- */
+function openFull(src) {
+    document.getElementById("overlayImg").src = src;
+    document.getElementById("imgOverlay").style.display = "flex";
 }
+document.getElementById("closeOverlay").onclick = () => {
+    document.getElementById("imgOverlay").style.display = "none";
+};
 
-/* check img url */
-function isImageUrl(url){
-  if(!url) return false;
-  try{
-    const u = String(url).trim();
-    return /\.(png|jpg|jpeg|gif|bmp|webp)$/i.test(u) || u.includes('imgur.com');
-  }catch(e){ return false; }
-}
-
-/* overlay preview */
-function openPreview(src){
-  const preview = $('imgPreview');
-  preview.innerHTML = '';
-  const overlay = document.createElement('div');
-  overlay.className = 'img-preview';
-  overlay.style.display='flex';
-
-  const img = document.createElement('img');
-  img.src = src;
-  img.alt = 'Preview';
-  overlay.appendChild(img);
-
-  const close = document.createElement('div');
-  close.className = 'close-x';
-  close.innerHTML = '✕';
-  close.setAttribute('role','button');
-  close.title = 'Schließen';
-  close.addEventListener('click', ()=> { preview.style.display='none'; preview.innerHTML=''; });
-
-  preview.appendChild(overlay);
-  preview.appendChild(close);
-  preview.style.display = 'block';
-}
-
-/* Show-button handler: filter by selections and render */
-$('showBtn').addEventListener('click', ()=>{
-  const a = $('selA').value;
-  const b = $('selB').value;
-  const c = $('selC').value;
-
-  if(!a){
-    alert('Bitte Spalte A (Region) auswählen.');
-    return;
-  }
-  let matched = rawRows.filter(r => String(r[colA] || '').trim() === a.trim());
-  if(b) matched = matched.filter(r => String(r[colB] || '').trim() === b.trim());
-  if(c) matched = matched.filter(r => String(r[colC] || '').trim() === c.trim());
-
-  renderCards(matched);
-});
-
-/* Reset */
-$('resetBtn').addEventListener('click', ()=>{
-  $('selA').selectedIndex = 0;
-  $('selB').innerHTML = '<option value="">— wählen —</option>';
-  $('selC').innerHTML = '<option value="">— wählen —</option>';
-  $('resultsContainer').innerHTML = '';
-});
-
-/* Download current CSV (original) */
-$('downloadBtn').addEventListener('click', ()=>{
-  window.open(CSV_URL, '_blank');
-});
-
-/* --------------- Mode toggle --------------- */
-const modeToggle = $('modeToggle');
-function updateToggle(){
-  modeToggle.textContent = document.body.classList.contains('dark') ? '☀️ Light Mode' : '🌙 Dark Mode';
-}
-modeToggle.addEventListener('click', ()=>{
-  document.body.classList.toggle('dark');
-  updateToggle();
-});
-updateToggle();
-
-/* --------------- Keyboard: ESC to close preview --------------- */
-document.addEventListener('keydown', (e)=>{
-  if(e.key === 'Escape'){
-    const p = $('imgPreview');
-    if(p.style.display === 'block'){ p.style.display='none'; p.innerHTML=''; }
-  }
-});
-
-/* --------------- init load button --------------- */
-$('loadBtn').addEventListener('click', loadData);
-
-/* Optional: auto-load on open (uncomment if desired) */
-// loadData();
-
+/* ---------------- DARK MODE ---------------- */
+document.getElementById("modeToggle").onclick = () => {
+    document.body.classList.toggle("dark");
+};
 </script>
+
 </body>
 </html>

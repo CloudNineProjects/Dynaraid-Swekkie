@@ -3,10 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Sheet → Cards Tool</title>
+<title>Dynamax Swekkie Edition</title>
 
 <!-- PapaParse -->
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<!-- Markdown Parser -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
   :root{
@@ -17,364 +20,263 @@
     --accent: #0ea5a4;
     --card-shadow: 0 10px 30px rgba(2,6,23,0.06);
   }
-  body { margin:0; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:var(--bg); color:var(--text); transition: background .25s, color .25s; }
-  body.dark { --bg: #071122; --surface: #07121a; --text: #e6eef6; --muted: #9fb0bf; --card-shadow: none; }
+  body { margin:0; font-family: Inter, system-ui, -apple-system, Arial; background:var(--bg); color:var(--text); transition: background .25s, color .25s; }
+  body.dark { --bg: #071122; --surface: #07121a; --text: #e6eef6; --muted: #9fb0bf; --card-shadow:none; }
 
-  /* Mode toggle */
   #modeToggle {
-    position: fixed; top: 12px; right: 12px; z-index:1200;
-    background: rgba(255,255,255,0.9); padding:8px 12px; border-radius:10px; cursor:pointer;
-    box-shadow: 0 8px 24px rgba(2,6,23,0.06); user-select:none;
+    position: fixed; top: 12px; right: 12px;
+    background: rgba(255,255,255,0.9);
+    padding:8px 12px; border-radius:10px;
+    cursor:pointer; user-select:none; z-index:999;
+    box-shadow:0 8px 24px rgba(2,6,23,0.06);
   }
-  body.dark #modeToggle { background: rgba(0,0,0,0.5); color:#fff; box-shadow:none; }
+  body.dark #modeToggle { background:rgba(0,0,0,0.5); color:#fff; box-shadow:none; }
 
-  /* Loading screen */
+  /* Loading */
   #loading {
-    min-height:100vh; display:flex; align-items:center; justify-content:center;
-    flex-direction:column; gap:16px; text-align:center;
-    padding: 28px;
+    min-height:100vh;
+    display:flex; flex-direction:column; gap:18px;
+    align-items:center; justify-content:center; text-align:center;
+    padding:20px;
   }
-  #loading img.logo { width:220px; height:220px; object-fit:cover; border-radius:12px; box-shadow:var(--card-shadow); }
+  #loading img.logo {
+    width:240px; height:240px; object-fit:cover;
+    border-radius:14px; box-shadow:var(--card-shadow);
+  }
+  #loading h1 { margin:0; font-size:22px; font-weight:700; }
   #loadBtn {
-    padding:10px 18px; border-radius:10px; border:none; background:var(--accent); color:white; font-weight:600;
-    cursor:pointer; font-size:15px; width:auto; min-width:140px;
+    padding:10px 18px; background:var(--accent); border:none;
+    border-radius:10px; color:#fff; cursor:pointer; font-size:16px; width:auto;
   }
-  #loading .info { color:var(--muted); font-size:0.95rem; margin-top:6px; }
+  #loadingInfo { color:var(--muted); }
 
-  /* App container */
-  .wrap { max-width:1000px; margin:28px auto; padding:18px; box-sizing:border-box; }
-  .panel { background:var(--surface); border-radius:12px; padding:14px; box-shadow:var(--card-shadow); }
+  /* App */
+  .wrap { max-width:1000px; margin:25px auto; padding:16px; }
+  .panel { background:var(--surface); padding:16px; border-radius:12px; box-shadow:var(--card-shadow); }
 
-  h1 { margin:0 0 10px 0; font-size:18px; }
-  label { display:block; margin-top:12px; color:var(--muted); font-size:13px; }
-  select, button { width:100%; padding:10px 12px; margin-top:6px; border-radius:8px; border:1px solid rgba(2,6,23,0.06); background:transparent; font-size:15px; color:inherit; box-sizing:border-box; }
-  .controls { display:flex; gap:10px; margin-top:12px; flex-wrap:wrap; }
-  .controls button { width:auto; padding:10px 14px; }
+  label { display:block; margin-top:12px; font-size:14px; color:var(--muted); }
+  select {
+    width:100%; padding:10px; border-radius:8px; border:1px solid #ccc;
+    margin-top:4px; font-size:15px; background:transparent; color:inherit;
+  }
 
-  /* Result cards container */
-  #cards { margin-top:18px; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+  .controls { display:flex; gap:12px; margin-top:14px; }
+  .controls button { padding:10px 14px; border-radius:8px; cursor:pointer; }
+
+  #cards {
+    margin-top:20px;
+    display:grid; gap:14px;
+    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  }
 
   .card {
-    background:var(--surface); border-radius:10px; padding:12px; box-shadow:var(--card-shadow); display:flex; flex-direction:column; gap:8px;
-    border:1px solid rgba(0,0,0,0.04);
+    background:var(--surface); padding:14px; border-radius:10px; box-shadow:var(--card-shadow); border:1px solid rgba(0,0,0,0.05);
   }
-  .card h3 { margin:0; font-size:14px; font-weight:700; }
-  .card .body { font-size:14px; color:var(--text); }
-  .card .meta { font-size:12px; color:var(--muted); }
+  .card h3 { margin:0 0 8px 0; font-size:15px; font-weight:700; }
 
-  img.preview { width:100%; height:160px; object-fit:cover; border-radius:8px; display:block; }
-  pre.preserved { white-space: pre-wrap; font-family: inherit; margin:0; color:var(--text); }
+  img.preview { width:100%; height:160px; object-fit:cover; border-radius:8px; }
 
-  /* Image overlay */
+  .markdown { font-size:14px; line-height:1.4; }
+
+  /* Fullscreen overlay */
   #overlay {
-    display:none; position:fixed; inset:0; background:rgba(2,6,23,0.7); z-index:2200; align-items:center; justify-content:center; padding:18px;
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75);
+    z-index:9999; align-items:center; justify-content:center; padding:18px;
   }
-  #overlay img { max-width:95%; max-height:95%; border-radius:8px; box-shadow:0 12px 40px rgba(0,0,0,0.6); }
-  .overlay-close {
-    position:absolute; top:18px; right:18px; background:rgba(255,255,255,0.95); width:36px; height:36px; border-radius:50%;
-    display:flex; align-items:center; justify-content:center; cursor:pointer; font-weight:700; z-index:2300;
+  #overlay img {
+    max-width:95%; max-height:95%; border-radius:10px;
+    box-shadow:0 12px 40px rgba(0,0,0,0.7);
   }
-  body.dark .overlay-close { background:rgba(0,0,0,0.6); color:#fff; }
+  #overlayClose {
+    position:absolute; top:18px; right:18px;
+    background:rgba(255,255,255,0.9);
+    width:36px; height:36px; border-radius:50%; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:700;
+  }
+  body.dark #overlayClose { background:rgba(0,0,0,0.5); color:#fff; }
 
-  .no-results { color:var(--muted); margin-top:12px; }
-
-  @media(max-width:640px){
-    #loading img.logo { width:180px; height:180px; }
-    .card { padding:10px; }
-  }
 </style>
 </head>
 <body>
-  <div id="modeToggle">🌙</div>
 
-  <!-- Loading screen -->
-  <div id="loading" role="status" aria-live="polite">
-    <!-- Imgur image you requested -->
-    <img class="logo" src="https://i.imgur.com/XZcfQzw.png" alt="loading image">
-    <button id="loadBtn">Load data</button>
-    <div class="info" id="loadingInfo" style="display:none">Loading…</div>
-  </div>
+<div id="modeToggle">🌙</div>
 
-  <!-- Main app -->
-  <div id="app" class="wrap" style="display:none">
-    <div class="panel">
-      <h1>Filter (Column A → B → C)</h1>
+<!-- Loading screen -->
+<div id="loading">
+  <img class="logo" src="https://i.imgur.com/ZUOQ974.png">
+  <h1>Dynamax Swekkie Edition</h1>
+  <button id="loadBtn">Load data</button>
+  <div id="loadingInfo" style="display:none">Loading…</div>
+</div>
 
-      <label for="selA">Column A — Region</label>
-      <select id="selA"><option value="">— choose —</option></select>
+<!-- Main App -->
+<div id="app" class="wrap" style="display:none">
+  <div class="panel">
 
-      <label for="selB">Column B — Location</label>
-      <select id="selB"><option value="">— choose —</option></select>
+    <label for="selA">Choose Region (A)</label>
+    <select id="selA"><option value="">— choose —</option></select>
 
-      <label for="selC">Column C — Dynamax</label>
-      <select id="selC"><option value="">— choose —</option></select>
+    <label for="selB">Choose Location (B)</label>
+    <select id="selB"><option value="">— choose —</option></select>
 
-      <div class="controls">
-        <button id="showBtn" style="background:var(--accent); color:#fff; border:none;">Show</button>
-        <button id="resetBtn">Reset</button>
-        <button id="downloadBtn">Open CSV</button>
-      </div>
+    <label for="selC">Choose Dynamax (C)</label>
+    <select id="selC"><option value="">— choose —</option></select>
 
-      <div id="cards" aria-live="polite"></div>
-      <div id="noResults" class="no-results" style="display:none">No matching row found.</div>
+    <div class="controls">
+      <button id="showBtn" style="background:var(--accent); color:#fff; border:none;">Show</button>
+      <button id="resetBtn">Reset</button>
     </div>
-  </div>
 
-  <!-- Overlay for full-size images -->
-  <div id="overlay" tabindex="-1">
-    <div class="overlay-close" id="overlayClose" aria-label="Close">✕</div>
-    <img id="overlayImg" alt="full-size" src="">
+    <div id="cards"></div>
+    <div id="noResults" style="color:var(--muted); display:none; margin-top:10px;">No matching row found.</div>
   </div>
+</div>
+
+<!-- Image overlay -->
+<div id="overlay">
+  <div id="overlayClose">✕</div>
+  <img id="overlayImg" src="">
+</div>
 
 <script>
-/* ---------------- CONFIG: CSV URL ---------------- */
-/* Using the Google Sheets CSV URL you gave earlier */
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRQS9tFDrOUN8aaTh6g-usN06lUbamRwAYPfhkmZLycHSmuxfiC45Gk33vQzGehprpLjTVgAi4jS2Fl/pub?output=csv";
 
-/* ---------------- State ---------------- */
-let rows = [];            // parsed rows (objects)
-let headers = [];         // header names in order
-let col = {};             // mapping index -> header, e.g. col.A = headerName
+let rows = [], headers = [], col = {};
 
-/* DOM refs */
-const loading = document.getElementById('loading');
-const loadBtn = document.getElementById('loadBtn');
-const loadingInfo = document.getElementById('loadingInfo');
-const app = document.getElementById('app');
-const selA = document.getElementById('selA');
-const selB = document.getElementById('selB');
-const selC = document.getElementById('selC');
-const showBtn = document.getElementById('showBtn');
-const resetBtn = document.getElementById('resetBtn');
-const downloadBtn = document.getElementById('downloadBtn');
-const cardsContainer = document.getElementById('cards');
-const noResults = document.getElementById('noResults');
+/* --- Utilities --- */
+function isImageUrl(u){ return u && (/\.(png|jpe?g|gif|webp)$/i.test(u) || u.includes("imgur.com")); }
+function unique(arr){ return [...new Set(arr.filter(x=>x && x.trim()))].sort(); }
+function md(text){ return marked.parse(String(text||"")); }
 
-const overlay = document.getElementById('overlay');
-const overlayImg = document.getElementById('overlayImg');
-const overlayClose = document.getElementById('overlayClose');
-
-const modeToggle = document.getElementById('modeToggle');
-
-/* ---------------- UTIL ---------------- */
-function isImageUrl(u){
-  if(!u) return false;
-  try {
-    const s = String(u).trim();
-    if(!s) return false;
-    // accept common image extensions and Imgur links
-    return /\.(png|jpe?g|gif|bmp|webp)(\?.*)?$/i.test(s) || /imgur\.com/i.test(s);
-  } catch(e){ return false; }
-}
-function uniqueSorted(arr){
-  return Array.from(new Set(arr.filter(x=>x!==undefined && x!==null && String(x).trim() !== '').map(x=>String(x).trim()))).sort((a,b)=> a.localeCompare(b, 'en', {sensitivity:'base'}));
-}
-function clearChildren(el){ while(el.firstChild) el.removeChild(el.firstChild); }
-
-/* ---------------- LOAD CSV (PapaParse) ---------------- */
-loadBtn.addEventListener('click', () => {
+/* --- Load CSV --- */
+document.getElementById("loadBtn").onclick = () => {
   loadBtn.disabled = true;
-  loadingInfo.style.display = 'block';
-  loadingInfo.textContent = 'Downloading CSV…';
+  loadingInfo.style.display = "block";
 
   Papa.parse(CSV_URL, {
     download: true,
     header: true,
     skipEmptyLines: true,
-    complete: (res) => {
-      if(!res || !res.meta || !res.meta.fields){
-        loadingInfo.textContent = 'Failed to parse CSV.';
-        loadBtn.disabled = false;
-        return;
-      }
+    complete: res => {
+      headers = res.meta.fields;
+      rows = res.data;
 
-      headers = res.meta.fields.slice(); // preserve order
-      rows = res.data.filter(r => Object.values(r).some(v => v !== undefined && String(v).trim() !== ''));
+      col.A = headers[0]; col.B = headers[1]; col.C = headers[2];
+      col.D = headers[3]; col.E = headers[4]; col.F = headers[5];
+      col.G = headers[6]; col.H = headers[7];
 
-      // Map first 8 columns to A..H (if fewer, map what exists)
-      col.A = headers[0] || 'A';
-      col.B = headers[1] || 'B';
-      col.C = headers[2] || 'C';
-      col.D = headers[3] || 'D';
-      col.E = headers[4] || 'E';
-      col.F = headers[5] || 'F';
-      col.G = headers[6] || 'G';
-      col.H = headers[7] || 'H';
+      const regions = unique(rows.map(r => r[col.A]));
+      fillSelect(selA, regions, "— choose —");
 
-      // populate select A
-      const aVals = uniqueSorted(rows.map(r => r[col.A] || ''));
-      populateSelect(selA, aVals, `— choose ${col.A} —`);
-
-      // hide loading, show app
-      loading.style.display = 'none';
-      app.style.display = 'block';
-    },
-    error: (err) => {
-      loadingInfo.textContent = 'Error loading CSV: ' + (err && err.message ? err.message : JSON.stringify(err));
-      loadBtn.disabled = false;
+      loading.style.display = "none";
+      app.style.display = "block";
     }
   });
-});
+};
 
-/* ---------------- Cascading selects ---------------- */
-selA.addEventListener('change', () => {
-  const a = selA.value;
-  clearChildren(selB);
-  clearChildren(selC);
-  selB.appendChild(new Option(`— choose ${col.B} —`, ''));
-  selC.appendChild(new Option(`— choose ${col.C} —`, ''));
-
-  if(!a) return;
-  const filtered = rows.filter(r => String(r[col.A] || '').trim() === a.trim());
-  const bVals = uniqueSorted(filtered.map(r => r[col.B] || ''));
-  populateSelect(selB, bVals, `— choose ${col.B} —`);
-});
-
-selB.addEventListener('change', () => {
-  const a = selA.value, b = selB.value;
-  clearChildren(selC);
-  selC.appendChild(new Option(`— choose ${col.C} —`, ''));
-  if(!a) return;
-  const filtered = rows.filter(r => String(r[col.A] || '').trim() === a.trim() && String(r[col.B] || '').trim() === String(b).trim());
-  const cVals = uniqueSorted(filtered.map(r => r[col.C] || ''));
-  populateSelect(selC, cVals, `— choose ${col.C} —`);
-});
-
-function populateSelect(selectEl, values, placeholder){
-  selectEl.innerHTML = '';
-  selectEl.appendChild(new Option(placeholder || '— choose —', ''));
-  values.forEach(v => selectEl.appendChild(new Option(v, v)));
+function fillSelect(sel, arr, placeholder){
+  sel.innerHTML = `<option value="">${placeholder}</option>`;
+  arr.forEach(v => sel.innerHTML += `<option>${v}</option>`);
 }
 
-/* ---------------- Show (create five cards D..H) ---------------- */
-showBtn.addEventListener('click', () => {
-  clearChildren(cardsContainer);
-  noResults.style.display = 'none';
+selA.onchange = () => {
+  const A = selA.value;
+  const filtered = rows.filter(r => r[col.A] === A);
+  fillSelect(selB, unique(filtered.map(r=>r[col.B])), "— choose —");
+  selC.innerHTML = `<option value="">— choose —</option>`;
+};
 
-  const a = String(selA.value || '').trim();
-  const b = String(selB.value || '').trim();
-  const c = String(selC.value || '').trim();
+selB.onchange = () => {
+  const A = selA.value, B = selB.value;
+  const filtered = rows.filter(r => r[col.A] === A && r[col.B] === B);
+  fillSelect(selC, unique(filtered.map(r=>r[col.C])), "— choose —");
+};
 
-  if(!a){
-    alert(`Please select ${col.A} first.`);
-    return;
+/* --- Show results (one row → five cards) --- */
+showBtn.onclick = () => {
+  const A = selA.value, B = selB.value, C = selC.value;
+  const match = rows.find(r =>
+    r[col.A] === A &&
+    (!B || r[col.B] === B) &&
+    (!C || r[col.C] === C)
+  );
+
+  cards.innerHTML = "";
+  noResults.style.display = match ? "none" : "block";
+  if(!match) return;
+
+  makeCard(col.D, match[col.D], "image-preview");
+  makeCard(col.E, match[col.E], "markdown");
+  makeCard(col.F, match[col.F], "image-full");
+  makeCard(col.G, match[col.G], "markdown");
+  makeCard(col.H, match[col.H], "markdown");
+};
+
+function makeCard(title, value, type){
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const h = document.createElement("h3");
+  h.textContent = title;
+  card.appendChild(h);
+
+  const body = document.createElement("div");
+
+  if(type === "image-preview" && isImageUrl(value)){
+    const img = document.createElement("img");
+    img.className = "preview";
+    img.src = value;
+    body.appendChild(img);
+  }
+  else if(type === "image-full" && isImageUrl(value)){
+    const img = document.createElement("img");
+    img.className = "preview";
+    img.src = value;
+    img.style.cursor = "pointer";
+    img.onclick = ()=> openOverlay(value);
+    body.appendChild(img);
+  }
+  else if(type === "markdown"){
+    const div = document.createElement("div");
+    div.className = "markdown";
+    div.innerHTML = md(value || "");
+    body.appendChild(div);
+  }
+  else {
+    const p = document.createElement("div");
+    p.textContent = value || "(empty)";
+    body.appendChild(p);
   }
 
-  // Find the row matching all selected keys (A must match; B and C may be optional)
-  const matched = rows.filter(r => {
-    if(String(r[col.A] || '').trim() !== a) return false;
-    if(b && String(r[col.B] || '').trim() !== b) return false;
-    if(c && String(r[col.C] || '').trim() !== c) return false;
-    return true;
-  });
-
-  if(!matched.length){
-    noResults.style.display = 'block';
-    return;
-  }
-
-  // Choose the first matched row (you said selection narrows to single row)
-  const row = matched[0];
-
-  // Create individual cards for D, E, F, G, H in that order
-  createCardForColumn(col.D, row[col.D], 'image-preview');
-  createCardForColumn(col.E, row[col.E], 'text');
-  createCardForColumn(col.F, row[col.F], 'image-full');
-  createCardForColumn(col.G, row[col.G], 'text');
-  createCardForColumn(col.H, row[col.H], 'text');
-});
-
-/* create card: type = 'image-preview' | 'image-full' | 'text' */
-function createCardForColumn(header, value, type){
-  const card = document.createElement('div');
-  card.className = 'card';
-
-  const title = document.createElement('h3');
-  title.textContent = header || '(unknown)';
-  card.appendChild(title);
-
-  const bodyDiv = document.createElement('div');
-  bodyDiv.className = 'body';
-
-  if(type === 'image-preview'){
-    if(value && isImageUrl(value)){
-      const img = document.createElement('img');
-      img.className = 'preview';
-      img.src = String(value).trim();
-      img.alt = header;
-      bodyDiv.appendChild(img);
-    } else {
-      const p = document.createElement('div'); p.textContent = '(no image)'; p.className='meta'; bodyDiv.appendChild(p);
-    }
-  } else if(type === 'image-full'){
-    if(value && isImageUrl(value)){
-      const img = document.createElement('img');
-      img.className = 'preview';
-      img.src = String(value).trim();
-      img.alt = header;
-      img.style.cursor = 'pointer';
-      img.addEventListener('click', ()=> openOverlay(String(value).trim()));
-      const hint = document.createElement('div'); hint.className='meta'; hint.textContent = 'Click to open original size';
-      bodyDiv.appendChild(img);
-      bodyDiv.appendChild(hint);
-    } else {
-      const p = document.createElement('div'); p.textContent = '(no image)'; p.className='meta'; bodyDiv.appendChild(p);
-    }
-  } else { // text
-    const pre = document.createElement('pre');
-    pre.className = 'preserved';
-    pre.textContent = value !== undefined && value !== null ? String(value) : '';
-    bodyDiv.appendChild(pre);
-  }
-
-  card.appendChild(bodyDiv);
-  cardsContainer.appendChild(card);
+  card.appendChild(body);
+  cards.appendChild(card);
 }
 
-/* ---------------- Overlay (full-size image) ---------------- */
+/* --- Overlay --- */
 function openOverlay(src){
   overlayImg.src = src;
-  overlay.style.display = 'flex';
-  overlay.focus();
+  overlay.style.display = "flex";
 }
-overlayClose.addEventListener('click', () => {
-  overlay.style.display = 'none';
-  overlayImg.src = '';
-});
-document.addEventListener('keydown', (e) => {
-  if(e.key === 'Escape' && overlay.style.display === 'flex'){
-    overlay.style.display = 'none';
-    overlayImg.src = '';
-  }
-});
+overlayClose.onclick = () => overlay.style.display = "none";
+overlay.onclick = e => { if(e.target === overlay) overlay.style.display="none"; };
+document.addEventListener("keydown", e => { if(e.key==="Escape") overlay.style.display="none"; });
 
-/* ---------------- Reset & Download ---------------- */
-resetBtn.addEventListener('click', () => {
+/* --- Reset --- */
+resetBtn.onclick = () => {
   selA.selectedIndex = 0;
-  selB.innerHTML = `<option value="">— choose ${col.B} —</option>`;
-  selC.innerHTML = `<option value="">— choose ${col.C} —</option>`;
-  clearChildren(cardsContainer);
-  noResults.style.display = 'none';
-});
+  selB.innerHTML = `<option value="">— choose —</option>`;
+  selC.innerHTML = `<option value="">— choose —</option>`;
+  cards.innerHTML = "";
+  noResults.style.display = "none";
+};
 
-downloadBtn.addEventListener('click', () => {
-  window.open(CSV_URL, '_blank');
-});
-
-/* ---------------- Mode toggle ---------------- */
-modeToggle.addEventListener('click', () => {
-  document.body.classList.toggle('dark');
-  modeToggle.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
-});
-
-/* ---------------- Accessibility: allow clicking background to close overlay ---------------- */
-overlay.addEventListener('click', (e) => {
-  if(e.target === overlay) {
-    overlay.style.display = 'none';
-    overlayImg.src = '';
-  }
-});
-
+/* --- Dark mode --- */
+modeToggle.onclick = () => {
+  document.body.classList.toggle("dark");
+  modeToggle.textContent = document.body.classList.contains("dark") ? "☀️" : "🌙";
+};
 </script>
+
 </body>
 </html>
